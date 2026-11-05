@@ -30,7 +30,11 @@ check 'Panel bound to localhost' bash -c "ss -H -ltnp | grep x-ui | grep -Eq '12
 check 'Certificate valid >=7 days' openssl x509 -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" -noout -checkend 604800
 check 'Certbot timer enabled' systemctl is-enabled --quiet certbot.timer
 check 'Certbot timer active' systemctl is-active --quiet certbot.timer
-check '3X-UI database exists' test -s /etc/x-ui/x-ui.db
+if [[ "${XUI_DB_TYPE:-sqlite}" == postgres ]]; then
+  check 'PostgreSQL panel config exists' test -s /etc/default/x-ui
+else
+  check '3X-UI SQLite database exists' test -s /etc/x-ui/x-ui.db
+fi
 check 'Subscription port block service' systemctl is-active --quiet xui-block-subscription.service
 check 'IPv4 subscription block' iptables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT
 check 'IPv6 subscription block' ip6tables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT
