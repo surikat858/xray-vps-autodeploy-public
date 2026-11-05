@@ -10,11 +10,15 @@ BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 install -o root -g root -m 700 "$BASE/scripts/server_info.sh" /usr/local/sbin/xui-server-info
 install -o root -g root -m 700 "$BASE/scripts/panel_access.sh" /usr/local/sbin/xui-panel-access
 cat > /etc/profile.d/99-xui-server-info.sh <<'PROFILE'
-# Print non-secret status only on interactive root SSH login sessions.
-if [[ ${EUID:-$(id -u)} -eq 0 && -n "${SSH_CONNECTION:-}" && $- == *i* &&
-      -x /usr/local/sbin/xui-server-info ]]; then
-  /usr/local/sbin/xui-server-info || :
-fi
+# POSIX shell compatible; do not affect noninteractive SSH commands.
+case "$-" in
+  *i*)
+    if [ "$(id -u)" -eq 0 ] && [ -n "${SSH_CONNECTION:-}" ] &&
+       [ -x /usr/local/sbin/xui-server-info ]; then
+      /usr/local/sbin/xui-server-info || :
+    fi
+    ;;
+esac
 PROFILE
 chmod 644 /etc/profile.d/99-xui-server-info.sh
 echo 'Interactive SSH root login summary enabled (no passwords or API tokens).'
