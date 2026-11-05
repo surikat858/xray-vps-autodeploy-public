@@ -103,7 +103,8 @@ UNIT
   fi
 fi
 log 'Installing deployment prerequisites'
-DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl certbot python3 iptables iptables-persistent cron openssl
+# Never install iptables-persistent here: apt can REMOVE an existing UFW setup.
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-remove ca-certificates curl certbot python3 iptables cron openssl
 IP=$(curl -4fsS --max-time 10 https://api.ipify.org)
 if [[ -n ${DUCKDNS_TOKEN:-} ]]; then
     label=${DOMAIN%.duckdns.org}
@@ -188,12 +189,14 @@ VPN_PORT=$VPN_PORT
 SSH_PORT=$SSH_PORT
 ENV
 chmod 600 /etc/x-ui/autodeploy-public.env
-log 'Installing newest stable Xray-core (or pinned XRAY_VERSION)'
-XRAY_VERSION="${XRAY_VERSION:-latest}" bash "$BASE/scripts/upgrade_xray.sh"
-log 'Applying non-disruptive firewall policy'
-iptables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT 2>/dev/null || iptables -I INPUT 1 ! -i lo -p tcp --dport 2096 -j REJECT
-ip6tables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT 2>/dev/null || ip6tables -I INPUT 1 ! -i lo -p tcp --dport 2096 -j REJECT
-netfilter-persistent save
+if [[ "${XRAY_VERSION:-bundled}" == bundled ]]; then
+  log 'Keeping Xray-core version bundled and tested with 3X-UI v3.11.0'
+else
+  log 'Upgrading Xray-core to explicitly selected version'
+  XRAY_VERSION="$XRAY_VERSION" bash "$BASE/scripts/upgrade_xray.sh"
+fi
+log 'Applying persistent, scoped subscription-port block without changing UFW'
+bash "$BASE/scripts/block_subscription.sh"
 log 'Verifying service and ports'
 for i in {1..10}; do
   if ss -lnt "( sport = :${VPN_PORT} )" | grep -q LISTEN; then break; fi
