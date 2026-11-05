@@ -78,10 +78,10 @@ while :; do
 done
 
 while :; do
-    prompt 'Версия Xray-core' 'latest'
+    prompt 'Версия Xray-core (bundled — версия из 3X-UI)' 'bundled'
     XRAY_VERSION=$REPLY_VALUE
-    [[ $XRAY_VERSION == latest || $XRAY_VERSION =~ ^v[0-9]+([.][0-9]+){2}$ ]] && break
-    echo 'Допустимо latest или версия вида v26.10.31.'
+    [[ $XRAY_VERSION == bundled || $XRAY_VERSION == latest || $XRAY_VERSION =~ ^v[0-9]+([.][0-9]+){2}$ ]] && break
+    echo 'Допустимо bundled, latest или версия вида v26.10.31.'
 done
 
 printf '\n=== ПРОВЕРЬТЕ ПАРАМЕТРЫ ===\n'
