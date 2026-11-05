@@ -100,6 +100,38 @@ ssh -N -o ExitOnForwardFailure=yes -L 8443:127.0.0.1:48013 root@YOUR_VPS_IP
 
 Затем откройте в браузере адрес, выведенный скриптом, вида `http://127.0.0.1:8443/YOUR_SECRET_BASE_PATH/`. Порт панели `48013` — **пример**, фактический порт и путь отличаются. Не публикуйте скриншоты, пароль или `/etc/x-ui/install-result.env`. Если порт 8443 на ПК занят — используйте иной локальный порт в туннеле и URL.
 
+
+
+### Проверка версий компонентов и точного адреса панели
+
+На VPS из каталога репозитория выполнить **только диагностические команды**:
+
+```bash
+echo '=== Ubuntu / kernel ==='
+. /etc/os-release; echo "$PRETTY_NAME"
+uname -r
+
+echo '=== 3X-UI ==='
+/usr/local/x-ui/x-ui version
+
+echo '=== Xray-core ==='
+/usr/local/x-ui/bin/xray-linux-amd64 version | head -n 1
+
+echo '=== Основные пакеты ==='
+dpkg-query -W -f='\${binary:Package}: \${Version}\n' \
+  certbot openssl curl git python3 iptables iptables-persistent 2>/dev/null || true
+
+echo '=== Состояние и версия Certbot ==='
+certbot --version
+systemctl is-active x-ui
+systemctl is-active certbot.timer
+
+echo '=== Путь и URL панели (без пароля) ==='
+sudo bash scripts/panel_access.sh
+```
+
+Последняя команда выводит **фактический** `Panel URL` и готовую команду `SSH tunnel`, используя `/etc/x-ui/install-result.env`. Значение `YOUR_SECRET_BASE_PATH` в примере `http://127.0.0.1:8443/YOUR_SECRET_BASE_PATH/` — **заполнитель**, его нужно заменить путём из строки `Panel URL`. Например, при `Panel URL: http://127.0.0.1:8443/abc123/` открывают именно этот URL **после запуска SSH-туннеля в Windows**. Команда без `--show-credentials` не печатает пароль. Не публикуйте действительный секретный путь панели в открытых логах или issue.
+
 ## Проверка после установки
 
 На VPS:
