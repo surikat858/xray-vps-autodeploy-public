@@ -1,0 +1,16 @@
+name: Static checks
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Static source checks
+        run: bash scripts/check_source.sh
+      - name: ShellCheck critical scripts
+        run: |
+          shellcheck -S warning scripts/healthcheck.sh scripts/check_source.sh scripts/install_backup_timer.sh scripts/install_cert_hook.sh scripts/backup.sh
