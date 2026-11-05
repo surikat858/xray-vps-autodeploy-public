@@ -20,6 +20,10 @@ fi
 # shellcheck disable=SC1090
 source "$CFG"
 : "${DOMAIN:?}" "${LE_EMAIL:?}" "${SSH_PORT:?}" "${VPN_PORT:?}" "${WS_PATH:?}" "${CLIENT_NAME:?}"
+XUI_DB_TYPE="${XUI_DB_TYPE:-sqlite}"
+PANEL_TLS_MODE="${PANEL_TLS_MODE:-ssh}"
+[[ $XUI_DB_TYPE == sqlite || $XUI_DB_TYPE == postgres ]] || { echo 'Invalid XUI_DB_TYPE'; exit 1; }
+[[ $PANEL_TLS_MODE == ssh || $PANEL_TLS_MODE == domain ]] || { echo 'Invalid PANEL_TLS_MODE'; exit 1; }
 XUI_VERSION="${XUI_VERSION:-v3.11.0}"
 [[ $XUI_VERSION == 'v3.11.0' ]] || { echo 'Only tested for v3.11.0'; exit 1; }
 [[ $DOMAIN =~ ^[a-z0-9-]+\.duckdns\.org$ ]] || { echo 'Invalid DuckDNS hostname'; exit 1; }
@@ -132,7 +136,7 @@ curl -fsSL --retry 3 -o "$TMP/install.sh" \
 # Never forward this output to the console or the general install log.
 UPSTREAM_LOG=/var/log/xray-vps-upstream-private.log
 install -o root -g root -m 600 /dev/null "$UPSTREAM_LOG"
-if ! XUI_NONINTERACTIVE=1 bash "$TMP/install.sh" "$XUI_VERSION" >"$UPSTREAM_LOG" 2>&1; then
+if ! XUI_NONINTERACTIVE=1 XUI_DB_TYPE="$XUI_DB_TYPE" XUI_SSL_MODE=none bash "$TMP/install.sh" "$XUI_VERSION" >"$UPSTREAM_LOG" 2>&1; then
   echo "Official 3X-UI installer failed. Private output: $UPSTREAM_LOG" >&2
   echo 'Do not publish this file: it contains credentials.' >&2
   exit 1
@@ -143,16 +147,23 @@ log '3X-UI installed; upstream credentials stored in root-only log'
 source /etc/x-ui/install-result.env
 log 'Binding the admin panel to loopback only'
 /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
+if [[ $PANEL_TLS_MODE == domain ]]; then
+  log 'Configuring panel HTTPS with validated domain certificate (loopback-only)'
+  /usr/local/x-ui/x-ui cert -webCert "$CERT" -webCertKey "$KEY"
+  PANEL_SCHEME=https
+else
+  PANEL_SCHEME=http
+fi
 systemctl restart x-ui
 systemctl is-active --quiet x-ui
 # Official v3.11.0 endpoint is /<webBasePath>/csrf-token.
 # Require a valid JSON CSRF response instead of only HTTP 200.
-panel_base="http://127.0.0.1:${XUI_PANEL_PORT}/${XUI_WEB_BASE_PATH#/}"
+panel_base="${PANEL_SCHEME}://127.0.0.1:${XUI_PANEL_PORT}/${XUI_WEB_BASE_PATH#/}"
 panel_base="${panel_base%/}"
 panel_ready=0
 last_http=none
 for _ in $(seq 1 40); do
-  response=$(curl --noproxy '*' -fsS --max-time 3 "$panel_base/csrf-token" 2>/dev/null || true)
+  response=$(curl --noproxy '*' -kfsS --max-time 3 "$panel_base/csrf-token" 2>/dev/null || true)
   if [[ -n "$response" ]] && printf '%s' "$response" | python3 -c '
 import json,sys
 try:
@@ -165,7 +176,7 @@ except (ValueError, KeyError, AssertionError, AttributeError):
     panel_ready=1
     break
   fi
-  last_http=$(curl --noproxy '*' -sS --max-time 3 -o /dev/null -w '%{http_code}' "$panel_base/csrf-token" 2>/dev/null || true)
+  last_http=$(curl --noproxy '*' -ksS --max-time 3 -o /dev/null -w '%{http_code}' "$panel_base/csrf-token" 2>/dev/null || true)
   sleep 1
 done
 [[ "$panel_ready" == 1 ]] || {
@@ -178,7 +189,7 @@ bash "$BASE/scripts/install_cert_hook.sh"
 log 'Creating VLESS/WebSocket/TLS inbound through authenticated localhost API'
 export XUI_USERNAME XUI_PASSWORD
 python3 "$BASE/scripts/api_inbound.py" --domain "$DOMAIN" --port "$VPN_PORT" \
-    --panel-port "$XUI_PANEL_PORT" --web-path "$XUI_WEB_BASE_PATH" \
+    --panel-port "$XUI_PANEL_PORT" --panel-scheme "$PANEL_SCHEME" --web-path "$XUI_WEB_BASE_PATH" \
     --ws-path "$WS_PATH" --client-name "$CLIENT_NAME" --cert "$CERT" --key "$KEY"
 unset XUI_PASSWORD XUI_USERNAME
 log 'Saving server parameters for health checks and Xray validation'
@@ -187,6 +198,8 @@ cat > /etc/x-ui/autodeploy-public.env <<ENV
 DOMAIN=$DOMAIN
 VPN_PORT=$VPN_PORT
 SSH_PORT=$SSH_PORT
+PANEL_TLS_MODE=$PANEL_TLS_MODE
+XUI_DB_TYPE=$XUI_DB_TYPE
 ENV
 chmod 600 /etc/x-ui/autodeploy-public.env
 if [[ "${XRAY_VERSION:-bundled}" == bundled ]]; then
