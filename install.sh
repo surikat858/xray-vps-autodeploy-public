@@ -127,7 +127,16 @@ trap 'rm -rf "$TMP"' EXIT
 curl -fsSL --retry 3 -o "$TMP/install.sh" \
   'https://raw.githubusercontent.com/MHSanaei/3x-ui/v3.11.0/install.sh'
 # Official installer checks GitHub release checksum itself.
-XUI_NONINTERACTIVE=1 bash "$TMP/install.sh" "$XUI_VERSION"
+# The official installer prints panel password, base path and API token.
+# Never forward this output to the console or the general install log.
+UPSTREAM_LOG=/var/log/xray-vps-upstream-private.log
+install -o root -g root -m 600 /dev/null "$UPSTREAM_LOG"
+if ! XUI_NONINTERACTIVE=1 bash "$TMP/install.sh" "$XUI_VERSION" >"$UPSTREAM_LOG" 2>&1; then
+  echo "Official 3X-UI installer failed. Private output: $UPSTREAM_LOG" >&2
+  echo 'Do not publish this file: it contains credentials.' >&2
+  exit 1
+fi
+log '3X-UI installed; upstream credentials stored in root-only log'
 [[ -f /etc/x-ui/install-result.env ]] || { echo 'Missing generated panel credentials'; exit 1; }
 # shellcheck disable=SC1091
 source /etc/x-ui/install-result.env
@@ -135,15 +144,34 @@ log 'Binding the admin panel to loopback only'
 /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
 systemctl restart x-ui
 systemctl is-active --quiet x-ui
-# The panel may briefly report active before its HTTP API is ready.
+# Official v3.11.0 endpoint is /<webBasePath>/csrf-token.
+# Require a valid JSON CSRF response instead of only HTTP 200.
+panel_base="http://127.0.0.1:${XUI_PANEL_PORT}/${XUI_WEB_BASE_PATH#/}"
+panel_base="${panel_base%/}"
 panel_ready=0
-for attempt in $(seq 1 20); do
-  code=$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' \
-    "http://127.0.0.1:${XUI_PANEL_PORT}/${XUI_WEB_BASE_PATH#/}csrf-token" 2>/dev/null || true)
-  if [[ "$code" == 200 ]]; then panel_ready=1; break; fi
+last_http=none
+for attempt in $(seq 1 40); do
+  response=$(curl --noproxy '*' -fsS --max-time 3 "$panel_base/csrf-token" 2>/dev/null || true)
+  if [[ -n "$response" ]] && printf '%s' "$response" | python3 -c '
+import json,sys
+try:
+    j=json.load(sys.stdin)
+    assert j.get("success") is True
+    assert isinstance(j.get("obj"),str) and len(j["obj"]) >= 16
+except (ValueError, KeyError, AssertionError, AttributeError):
+    sys.exit(1)
+' >/dev/null 2>&1; then
+    panel_ready=1
+    break
+  fi
+  last_http=$(curl --noproxy '*' -sS --max-time 3 -o /dev/null -w '%{http_code}' "$panel_base/csrf-token" 2>/dev/null || true)
   sleep 1
 done
-[[ "$panel_ready" == 1 ]] || { echo 'Panel API did not become ready' >&2; exit 1; }
+[[ "$panel_ready" == 1 ]] || {
+  echo "Panel API readiness failed: HTTP ${last_http:-unavailable}, after 40 checks." >&2
+  echo 'Run: systemctl status x-ui; journalctl -u x-ui -n 40 --no-pager' >&2
+  exit 1
+}
 log 'Installing domain-specific automatic renewal hook'
 bash "$BASE/scripts/install_cert_hook.sh"
 log 'Creating VLESS/WebSocket/TLS inbound through authenticated localhost API'
