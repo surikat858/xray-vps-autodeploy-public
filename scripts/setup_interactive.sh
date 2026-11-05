@@ -32,6 +32,8 @@ fi
 prompt() {
     local label=$1 default=$2 answer
     read -r -p "$label [$default]: " answer
+    # Remove terminal bracketed-paste/escape sequences and stray CR/whitespace.
+    answer=$(printf '%s' "$answer" | sed -E 's/\x1B\[[0-9;]*[A-Za-z~]//g; s/^[[:space:]]+//; s/[[:space:]]+$//')
     REPLY_VALUE="${answer:-$default}"
 }
 valid_port() {
@@ -122,8 +124,8 @@ printf '%s\n' '3) fixed — указать конкретную версию'
 while :; do
     prompt 'Вариант Xray (1/2/3, Enter = bundled)' '1'
     case "$REPLY_VALUE" in
-        1) XRAY_VERSION=bundled; break ;;
-        2) XRAY_VERSION=latest; break ;;
+        1|bundled) XRAY_VERSION=bundled; break ;;
+        2|latest) XRAY_VERSION=latest; break ;;
         3)
             prompt 'Версия (например, v26.10.31)' 'v26.10.31'
             if [[ $REPLY_VALUE =~ ^v[0-9]+([.][0-9]+){2}$ ]]; then
