@@ -116,7 +116,7 @@ if [[ -n ${DUCKDNS_TOKEN:-} ]]; then
 fi
 DNS_IP=$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')
 [[ $DNS_IP == "$IP" ]] || { echo "DNS mismatch: $DOMAIN => ${DNS_IP:-none}, server => $IP"; exit 1; }
-log 'Issuing standalone certificate via Let's Encrypt'
+log 'Issuing standalone Let\x27s Encrypt certificate'
 certbot certonly --standalone --preferred-challenges http --non-interactive --agree-tos \
   --email "$LE_EMAIL" -d "$DOMAIN" --keep-until-expiring
 CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
