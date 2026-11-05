@@ -13,4 +13,6 @@ jobs:
         run: bash scripts/check_source.sh
       - name: ShellCheck critical scripts
         run: |
-          shellcheck -S warning scripts/healthcheck.sh scripts/check_source.sh scripts/install_backup_timer.sh scripts/install_cert_hook.sh scripts/backup.sh
+          shellcheck -S warning install.sh scripts/setup_interactive.sh scripts/block_subscription.sh scripts/healthcheck.sh scripts/check_source.sh scripts/install_backup_timer.sh scripts/install_cert_hook.sh scripts/backup.sh
+      - name: Installation safety contract tests
+        run: python3 scripts/test_install_contracts.py
