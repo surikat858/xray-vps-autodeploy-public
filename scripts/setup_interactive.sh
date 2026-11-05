@@ -97,7 +97,7 @@ while :; do
     prompt 'Режим TLS панели: 1=SSH-туннель, 2=HTTPS' '1'
     case "$REPLY_VALUE" in
         1) PANEL_TLS_MODE=ssh; break ;;
-        2) PANEL_TLS_MODE=https; break ;;
+        2) PANEL_TLS_MODE=domain; break ;;
         *) echo 'Введите 1 или 2.' ;;
     esac
 done
