@@ -20,7 +20,10 @@ source "$CONFIG"
   echo 'Only a valid DuckDNS hostname is supported' >&2
   exit 1
 }
-[[ -f /etc/x-ui/x-ui.db ]] || { echo '3X-UI database missing' >&2; exit 1; }
+[[ -f /etc/x-ui/install-result.env && -x /usr/local/x-ui/x-ui ]] || {
+  echo '3X-UI installation metadata or executable missing' >&2
+  exit 1
+}
 command -v certbot >/dev/null || { echo 'Install certbot first' >&2; exit 1; }
 
 CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
