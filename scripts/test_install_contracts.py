@@ -52,7 +52,16 @@ assert 'PANEL_TLS_MODE=ssh' in example
 assert 'XUI_DB_TYPE=postgres' in wizard
 assert 'PANEL_TLS_MODE=domain; break' in wizard and 'PANEL_TLS_MODE=ssh; break' in wizard
 assert 'PANEL_TLS_MODE == domain' in installer
-assert "'bundled'" in wizard
+assert '1|bundled) XRAY_VERSION=bundled' in wizard
+assert '2|latest) XRAY_VERSION=latest' in wizard
+assert "prompt 'Вариант Xray (1/2/3, Enter = bundled)' '1'" in wizard
+assert "answer=$(printf '%s' " in wizard
+assert "apt-get update" in wizard and "DEBIAN_FRONTEND=noninteractive apt-get upgrade -y" in wizard
+assert "apt-prepared-boot" in installer and "apt-prepared-boot" in wizard
+assert "install_login_summary.sh" in installer
+assert "xui-server-info" in read("scripts/install_login_summary.sh")
+assert "Access URL:" in read("scripts/server_info.sh")
+assert "Xray-core:" in read("scripts/server_info.sh")
 assert '[[ ! -e "$CFG" ]]' in wizard
 assert '[[ -f "$BASE/install.sh"' in wizard
 assert 'XUI_NONINTERACTIVE=1 XUI_DB_TYPE=' in installer
