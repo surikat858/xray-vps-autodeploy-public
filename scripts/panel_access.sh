@@ -37,7 +37,7 @@ scheme=http
 if [[ -f /etc/x-ui/autodeploy-public.env ]]; then
   # shellcheck disable=SC1091
   source /etc/x-ui/autodeploy-public.env
-  [[ "${PANEL_TLS_MODE:-ssh}" == domain ]] && scheme=https
+  if [[ "${PANEL_TLS_MODE:-ssh}" == domain ]]; then scheme=https; fi
 fi
 
 echo '=== 3X-UI PANEL ACCESS (Windows PowerShell) ==='
@@ -60,8 +60,7 @@ if (( show_credentials )); then
   fi
   echo '═══════════════════════════════════════════'
   echo '     Panel Installation Complete!'
-  echo '═══════════════════════════════════════════
-'
+  echo '═══════════════════════════════════════════'
   printf 'Username:    %s\n' "$XUI_USERNAME"
   printf 'Password:    %s\n' "$XUI_PASSWORD"
   printf 'Port:        %s\n' "$XUI_PANEL_PORT"
