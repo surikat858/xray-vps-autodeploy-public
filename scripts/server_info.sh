@@ -25,7 +25,7 @@ printf '3X-UI service:   %s\n' "$(systemctl is-active x-ui 2>/dev/null || true)"
 printf 'Fail2ban:        %s\n' "$(systemctl is-active fail2ban 2>/dev/null || true)"
 printf 'Certbot timer:   %s\n' "$(systemctl is-active certbot.timer 2>/dev/null || true)"
 if [[ -x /usr/local/x-ui/x-ui ]]; then
-  printf '3X-UI version:   %s\n' "$(/usr/local/x-ui/x-ui version 2>/dev/null | head -n 1 || true)"
+  printf '3X-UI version:   %s\n' "$(/usr/local/x-ui/x-ui -v 2>/dev/null | head -n 1 || true)"
 fi
 if [[ -x /usr/local/x-ui/bin/xray-linux-amd64 ]]; then
   printf 'Xray-core:       %s\n' "$(/usr/local/x-ui/bin/xray-linux-amd64 version 2>/dev/null | head -n 1 || true)"
@@ -50,5 +50,5 @@ if [[ -r /etc/x-ui/install-result.env ]]; then
 fi
 printf 'Server details:  sudo /usr/local/sbin/xui-server-info\n'
 printf '3X-UI menu:      sudo x-ui\n'
-printf 'Private panel:   sudo bash /root/xray-vps-autodeploy-public/scripts/panel_access.sh --show-credentials\n'
+printf 'Private panel:   sudo /usr/local/sbin/xui-panel-access --show-credentials\n'
 printf '=====================================\n\n'
