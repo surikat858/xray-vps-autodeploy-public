@@ -50,7 +50,8 @@ assert 'XRAY_VERSION=bundled' in example
 assert 'XUI_DB_TYPE=sqlite' in example
 assert 'PANEL_TLS_MODE=ssh' in example
 assert 'XUI_DB_TYPE=postgres' in wizard
-assert 'PANEL_TLS_MODE=domain' not in wizard or 'PANEL_TLS_MODE=ssh' in wizard
+assert 'PANEL_TLS_MODE=domain; break' in wizard and 'PANEL_TLS_MODE=ssh; break' in wizard
+assert 'PANEL_TLS_MODE == domain' in installer
 assert "'bundled'" in wizard
 assert '[[ ! -e "$CFG" ]]' in wizard
 assert '[[ -f "$BASE/install.sh"' in wizard
