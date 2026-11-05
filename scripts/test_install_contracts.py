@@ -47,10 +47,15 @@ assert "systemctl disable xray-autodeploy-resume.service" in installer
 assert 'rm -f -- "$REBOOT_STATE"' in installer
 assert 'XRAY_VERSION:-bundled' in installer
 assert 'XRAY_VERSION=bundled' in example
+assert 'XUI_DB_TYPE=sqlite' in example
+assert 'PANEL_TLS_MODE=ssh' in example
+assert 'XUI_DB_TYPE=postgres' in wizard
+assert 'PANEL_TLS_MODE=domain' not in wizard or 'PANEL_TLS_MODE=ssh' in wizard
 assert "'bundled'" in wizard
 assert '[[ ! -e "$CFG" ]]' in wizard
 assert '[[ -f "$BASE/install.sh"' in wizard
-assert 'XUI_NONINTERACTIVE=1 bash' in installer
+assert 'XUI_NONINTERACTIVE=1 XUI_DB_TYPE=' in installer
+assert 'XUI_SSL_MODE=none bash' in installer
 assert "config.env" in read(".gitignore")
 assert "DUCKDNS_TOKEN=" in example and "vpn-example.duckdns.org" in example
 
