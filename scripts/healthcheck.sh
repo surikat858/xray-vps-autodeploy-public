@@ -7,9 +7,9 @@ VPN_PORT="${VPN_PORT:-443}"
 if [[ -f /etc/x-ui/autodeploy-public.env ]]; then
   # shellcheck disable=SC1091
   source /etc/x-ui/autodeploy-public.env
-elif [[ -f /root/xray-vps-autodeploy/config.env ]]; then
+elif [[ -f "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/config.env" ]]; then
   # shellcheck disable=SC1091
-  source /root/xray-vps-autodeploy/config.env
+  source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/config.env"
 fi
 : "${DOMAIN:?Missing DOMAIN}"
 [[ $VPN_PORT =~ ^[0-9]{1,5}$ ]] || exit 1
@@ -31,6 +31,9 @@ check 'Certificate valid >=7 days' openssl x509 -in "/etc/letsencrypt/live/$DOMA
 check 'Certbot timer enabled' systemctl is-enabled --quiet certbot.timer
 check 'Certbot timer active' systemctl is-active --quiet certbot.timer
 check '3X-UI database exists' test -s /etc/x-ui/x-ui.db
+check 'Subscription port block service' systemctl is-active --quiet xui-block-subscription.service
+check 'IPv4 subscription block' iptables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT
+check 'IPv6 subscription block' ip6tables -C INPUT ! -i lo -p tcp --dport 2096 -j REJECT
 check 'DNS resolves' getent ahostsv4 "$DOMAIN"
 # Firewall is tested independently because INPUT chains may have jump rules.
 echo '[INFO] IPv4 firewall INPUT:'
