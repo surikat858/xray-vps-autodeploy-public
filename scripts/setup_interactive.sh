@@ -10,11 +10,24 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ $(. /etc/os-release; printf '%s:%s' "$ID" "$VERSION_ID") == ubuntu:24.04 ]] || die 'Требуется Ubuntu 24.04.'
 [[ $(uname -m) == x86_64 ]] || die 'Требуется x86_64.'
 [[ ! -e /etc/x-ui/x-ui.db && ! -e /usr/local/x-ui/x-ui ]] || die 'Обнаружена существующая 3X-UI; установка поверх неё запрещена.'
-[[ ! -f /var/run/reboot-required ]] || die 'ОС требует перезагрузку. Перезагрузите VPS и повторите установку.'
+
 BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$BASE/install.sh" && -f "$BASE/config.example.env" ]] || die 'Неполный репозиторий.'
 CFG="$BASE/config.env"
 [[ ! -e "$CFG" ]] || die "Файл $CFG уже есть. Для защиты настроек мастер не перезаписывает его; продолжите вручную."
+
+# Update before asking for VPN settings; install.sh will avoid repeating
+# the update in this same boot by verifying the root-owned boot marker.
+echo '=== Обновление Ubuntu перед настройкой VPN ==='
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+install -d -m 700 /run/xray-autodeploy
+cat /proc/sys/kernel/random/boot_id > /run/xray-autodeploy/apt-prepared-boot
+chmod 600 /run/xray-autodeploy/apt-prepared-boot
+if [[ -f /var/run/reboot-required ]]; then
+    echo 'Обновление требует перезагрузки: после заполнения анкеты'
+    echo 'конфигурация сохранится, а установка продолжится автоматически после reboot.'
+fi
 
 prompt() {
     local label=$1 default=$2 answer
@@ -102,11 +115,25 @@ while :; do
     esac
 done
 
+printf '\n=== Выбор версии Xray-core ===\n'
+printf '%s\n' '1) bundled — версия из 3X-UI (по умолчанию)'
+printf '%s\n' '2) latest — последняя стабильная версия Xray-core'
+printf '%s\n' '3) fixed — указать конкретную версию'
 while :; do
-    prompt 'Версия Xray-core (bundled — версия из 3X-UI)' 'bundled'
-    XRAY_VERSION=$REPLY_VALUE
-    [[ $XRAY_VERSION == bundled || $XRAY_VERSION == latest || $XRAY_VERSION =~ ^v[0-9]+([.][0-9]+){2}$ ]] && break
-    echo 'Допустимо bundled, latest или версия вида v26.10.31.'
+    prompt 'Вариант Xray (1/2/3, Enter = bundled)' '1'
+    case "$REPLY_VALUE" in
+        1) XRAY_VERSION=bundled; break ;;
+        2) XRAY_VERSION=latest; break ;;
+        3)
+            prompt 'Версия (например, v26.10.31)' 'v26.10.31'
+            if [[ $REPLY_VALUE =~ ^v[0-9]+([.][0-9]+){2}$ ]]; then
+                XRAY_VERSION=$REPLY_VALUE
+                break
+            fi
+            echo 'Укажите версию вида v26.10.31.'
+            ;;
+        *) echo 'Выберите 1, 2 или 3. Enter означает bundled.' ;;
+    esac
 done
 
 printf '\n=== ПРОВЕРЬТЕ ПАРАМЕТРЫ ===\n'
