@@ -116,7 +116,7 @@ if [[ -n ${DUCKDNS_TOKEN:-} ]]; then
 fi
 DNS_IP=$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')
 [[ $DNS_IP == "$IP" ]] || { echo "DNS mismatch: $DOMAIN => ${DNS_IP:-none}, server => $IP"; exit 1; }
-log 'Issuing standalone certificate via Let’s Encrypt'
+log 'Issuing standalone certificate via Let's Encrypt'
 certbot certonly --standalone --preferred-challenges http --non-interactive --agree-tos \
   --email "$LE_EMAIL" -d "$DOMAIN" --keep-until-expiring
 CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
@@ -151,7 +151,7 @@ panel_base="http://127.0.0.1:${XUI_PANEL_PORT}/${XUI_WEB_BASE_PATH#/}"
 panel_base="${panel_base%/}"
 panel_ready=0
 last_http=none
-for attempt in $(seq 1 40); do
+for _ in $(seq 1 40); do
   response=$(curl --noproxy '*' -fsS --max-time 3 "$panel_base/csrf-token" 2>/dev/null || true)
   if [[ -n "$response" ]] && printf '%s' "$response" | python3 -c '
 import json,sys
@@ -198,7 +198,7 @@ fi
 log 'Applying persistent, scoped subscription-port block without changing UFW'
 bash "$BASE/scripts/block_subscription.sh"
 log 'Verifying service and ports'
-for i in {1..10}; do
+for _ in {1..10}; do
   if ss -lnt "( sport = :${VPN_PORT} )" | grep -q LISTEN; then break; fi
   sleep 1
 done
