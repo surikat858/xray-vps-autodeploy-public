@@ -1,0 +1,12 @@
+config.env
+*.log
+*.db
+*.pem
+*.key
+*.vless
+*.tar.gz
+*.zip
+.env
+__pycache__/
+*.pyc
+install-result.env
