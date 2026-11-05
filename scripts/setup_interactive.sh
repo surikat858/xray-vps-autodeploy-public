@@ -38,7 +38,7 @@ while :; do
 done
 
 while :; do
-    prompt 'Email для сертификата Let’s Encrypt' 'admin@example.com'
+    prompt 'Email для сертификата Let's Encrypt' 'admin@example.com'
     LE_EMAIL=$REPLY_VALUE
     [[ $LE_EMAIL =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}$ && $LE_EMAIL != admin@example.com ]] && break
     echo 'Введите настоящий email без пробелов.'
