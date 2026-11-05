@@ -71,9 +71,20 @@ if (( RESUME_MODE )); then
   rm -f -- "$REBOOT_STATE"
   log 'Resuming clean VPS setup after Ubuntu reboot'
 else
-  log 'Updating Ubuntu package lists and upgrading installed packages before deployment'
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+  # The interactive wizard has already upgraded packages in THIS boot.
+  # For direct install.sh use, perform update/upgrade here.
+  APT_MARKER=/run/xray-autodeploy/apt-prepared-boot
+  current_boot=$(cat /proc/sys/kernel/random/boot_id)
+  if [[ -f "$APT_MARKER" && ! -L "$APT_MARKER" &&
+        $(stat -c %a "$APT_MARKER") == 600 &&
+        $(cat "$APT_MARKER") == "$current_boot" ]]; then
+    log 'Ubuntu updated by interactive wizard in this boot; skipping duplicate apt upgrade'
+    rm -f -- "$APT_MARKER"
+  else
+    log 'Updating Ubuntu package lists and upgrading installed packages before deployment'
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+  fi
   if [[ -f /var/run/reboot-required ]]; then
     log 'OS reboot required. Scheduling one-time install continuation.'
     [[ $BASE =~ ^/[A-Za-z0-9/_-]+$ ]] || { echo 'Unsupported checkout path for systemd continuation' >&2; exit 1; }
@@ -221,6 +232,8 @@ ss -lnt "( sport = :${XUI_PANEL_PORT} )" | grep -q '127.0.0.1'
 bash "$BASE/scripts/backup.sh"
 log 'Enabling automated daily local backups'
 bash "$BASE/scripts/install_backup_timer.sh"
+log 'Installing root-only SSH login server summary'
+bash "$BASE/scripts/install_login_summary.sh"
 log 'INSTALL COMPLETE'
 echo "Domain: $DOMAIN, VPN TCP port: $VPN_PORT"
 echo 'Client profile: /etc/x-ui/autodeploy-client.json (root only).'
