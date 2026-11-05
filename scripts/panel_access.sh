@@ -24,6 +24,7 @@ done
 FILE=/etc/x-ui/install-result.env
 [[ -f "$FILE" ]] || { echo "Missing $FILE" >&2; exit 1; }
 # shellcheck disable=SC1091
+# shellcheck disable=SC1090
 source "$FILE"
 : "${XUI_PANEL_PORT:?Missing panel port}" "${XUI_WEB_BASE_PATH:?Missing base path}"
 [[ "$XUI_PANEL_PORT" =~ ^[0-9]{1,5}$ ]] || exit 1
