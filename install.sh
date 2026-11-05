@@ -4,6 +4,15 @@ set -Eeuo pipefail
 umask 077
 BASE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CFG="${CONFIG_FILE:-$BASE/config.env}"
+REBOOT_STATE=/var/lib/xray-autodeploy/reboot-pending
+RESUME_UNIT=/etc/systemd/system/xray-autodeploy-resume.service
+RESUME_MODE=0
+if [[ $# -eq 1 && $1 == --resume-after-reboot ]]; then
+  RESUME_MODE=1
+elif (( $# != 0 )); then
+  echo "Usage: bash install.sh [--resume-after-reboot]" >&2
+  exit 2
+fi
 [[ $(id -u) -eq 0 ]] || { echo 'Run as root'; exit 1; }
 [[ -f "$CFG" ]] || { echo "Copy config.example.env to config.env and edit it: $CFG"; exit 1; }
 [[ $(stat -c %a "$CFG") == 600 ]] || { echo 'chmod 600 config.env first'; exit 1; }
@@ -21,6 +30,7 @@ XUI_VERSION="${XUI_VERSION:-v3.11.0}"
 [[ $(. /etc/os-release; echo "$ID:$VERSION_ID") == 'ubuntu:24.04' ]] || { echo 'Requires Ubuntu 24.04'; exit 1; }
 [[ $(uname -m) == x86_64 ]] || { echo 'Requires x86_64'; exit 1; }
 [[ ! -e /etc/x-ui/x-ui.db ]] || { echo 'Existing x-ui database detected: refusing to overwrite'; exit 1; }
+[[ ! -e /usr/local/x-ui/x-ui ]] || { echo 'Existing x-ui executable detected: refusing to overwrite'; exit 1; }
 [[ $(df -Pm / | awk 'NR==2 {print $4}') -ge 1500 ]] || { echo 'Need at least 1.5 GB free'; exit 1; }
 [[ $SSH_PORT != "$VPN_PORT" ]] || exit 1
 [[ $VPN_PORT != 80 && $VPN_PORT != 2096 ]] || exit 1
@@ -40,9 +50,58 @@ for port in 80 "$VPN_PORT" 2096; do
     exit 1
   fi
 done
-log 'Updating Ubuntu package lists and upgrading installed packages before deployment'
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+# Resumption is valid only after a reboot scheduled by the initial run.
+# A one-time marker contains the source boot ID; never retry a partial panel install.
+if (( RESUME_MODE )); then
+  [[ -f "$REBOOT_STATE" && ! -L "$REBOOT_STATE" ]] || { echo 'No scheduled reboot continuation; refusing resume' >&2; exit 1; }
+  [[ $(stat -c %a "$REBOOT_STATE") == 600 ]] || { echo 'Unsafe resume marker permissions' >&2; exit 1; }
+  source_boot=$(cat "$REBOOT_STATE")
+  current_boot=$(cat /proc/sys/kernel/random/boot_id)
+  [[ $source_boot =~ ^[0-9a-f-]{36}$ && $source_boot != "$current_boot" ]] || {
+    echo 'Resume requires a different boot after the OS update' >&2
+    exit 1
+  }
+  # One attempt only: disable before any installation work, so repeated reboots
+  # after an incomplete 3X-UI setup cannot re-run the installer.
+  systemctl disable xray-autodeploy-resume.service
+  rm -f -- "$REBOOT_STATE"
+  log 'Resuming clean VPS setup after Ubuntu reboot'
+else
+  log 'Updating Ubuntu package lists and upgrading installed packages before deployment'
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+  if [[ -f /var/run/reboot-required ]]; then
+    log 'OS reboot required. Scheduling one-time install continuation.'
+    [[ $BASE =~ ^/[A-Za-z0-9/_-]+$ ]] || { echo 'Unsupported checkout path for systemd continuation' >&2; exit 1; }
+    [[ ! -e "$REBOOT_STATE" ]] || { echo 'Existing reboot marker: inspect before continuing' >&2; exit 1; }
+    install -d -m 700 /var/lib/xray-autodeploy
+    cat /proc/sys/kernel/random/boot_id > "$REBOOT_STATE"
+    chmod 600 "$REBOOT_STATE"
+    cat > "$RESUME_UNIT" <<UNIT
+[Unit]
+Description=Resume one-time Xray VPN install after OS upgrade reboot
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=$REBOOT_STATE
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $BASE/install.sh --resume-after-reboot
+WorkingDirectory=$BASE
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    chmod 644 "$RESUME_UNIT"
+    systemctl daemon-reload
+    systemctl enable xray-autodeploy-resume.service
+    log 'Rebooting now; SSH will disconnect. Installation will continue once after boot.'
+    log 'After reconnect: journalctl -u xray-autodeploy-resume.service -b --no-pager'
+    systemctl reboot
+    exit 0
+  fi
+fi
 log 'Installing deployment prerequisites'
 DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl certbot python3 iptables iptables-persistent cron openssl
 IP=$(curl -4fsS --max-time 10 https://api.ipify.org)
