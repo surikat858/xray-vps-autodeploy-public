@@ -113,6 +113,10 @@ def main():
         },
         'sniffing': {'enabled': False, 'destOverride': ['http', 'tls']}
     }
+    # Upstream 3X-UI v3.11.0 model.Inbound expects these three fields
+    # as JSON-encoded STRINGS, not nested JSON objects.
+    for field in ('settings', 'streamSettings', 'sniffing'):
+        payload[field] = json.dumps(payload[field], separators=(',', ':'))
     # Submit the same session's CSRF token to the mutating endpoint.
     # API helper below takes the token via form fallback when JSON cannot carry it.
     request = urllib.request.Request(
