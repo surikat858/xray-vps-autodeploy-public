@@ -37,6 +37,7 @@ def main():
     p.add_argument('--domain', required=True)
     p.add_argument('--port', required=True, type=int)
     p.add_argument('--panel-port', required=True, type=int)
+    p.add_argument('--panel-scheme', choices=('http','https'), default='http')
     p.add_argument('--web-path', required=True)
     p.add_argument('--ws-path', required=True)
     p.add_argument('--client-name', required=True)
@@ -60,7 +61,7 @@ def main():
     # 3X-UI v3.11.0 requires session-bound CSRF for login and mutations.
     csrf_token = None
     errors = []
-    for scheme in ('http', 'https'):
+    for scheme in (args.panel_scheme,):
         base = f'{scheme}://127.0.0.1:{args.panel_port}{basepath}'
         try:
             token_response = api_call(opener, base, '/csrf-token')
