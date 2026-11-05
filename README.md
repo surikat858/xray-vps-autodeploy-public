@@ -118,7 +118,7 @@ echo '=== Xray-core ==='
 /usr/local/x-ui/bin/xray-linux-amd64 version | head -n 1
 
 echo '=== Основные пакеты ==='
-dpkg-query -W -f='\${binary:Package}: \${Version}\n' \
+dpkg-query -W -f='${binary:Package}: ${Version}\n' \
   certbot openssl curl git python3 iptables iptables-persistent 2>/dev/null || true
 
 echo '=== Состояние и версия Certbot ==='
